@@ -22,6 +22,7 @@
 |-----------|-------------|
 | API | Python 3.11 + FastAPI |
 | Worker | Python 3.11 |
+| Frontend | Vanilla JS + Tailwind CSS + Nginx |
 | Queue | Redis 7 |
 | Database | PostgreSQL 15 |
 | Container | Docker + Docker Compose |
@@ -38,6 +39,12 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                    Kubernetes (Minikube)                    │
 │                                                             │
+│   ┌─────────────┐                                          │
+│   │  Frontend   │ (Nginx serving static files)             │
+│   │  Port 80    │                                          │
+│   └──────┬──────┘                                          │
+│          │                                                  │
+│          ▼                                                  │
 │   ┌─────────────┐      ┌─────────────┐      ┌───────────┐  │
 │   │ API Gateway │◄────►│   Redis     │◄────►│  Workers  │  │
 │   │  (FastAPI)  │      │  (Queue)    │      │ (x3 pods) │  │
@@ -55,10 +62,43 @@
 
 ### Data Flow
 
-1. **Submit:** Client → API → Redis Queue + PostgreSQL (task created)
+1. **Submit:** Client/Frontend → API → Redis Queue + PostgreSQL (task created)
 2. **Process:** Worker polls Redis → Execute → Update PostgreSQL → Store result
-3. **Query:** Client → API → PostgreSQL → Return status/result
+3. **Query:** Client/Frontend → API → PostgreSQL → Return status/result
 4. **Scale:** Queue depth → HPA → Scale worker pods
+
+---
+
+## Frontend Dashboard
+
+A minimalist dashboard to visualize task queue status and worker health.
+
+### Features
+- Real-time task list with status indicators
+- Queue depth visualization
+- Worker health status
+- Task submission form
+- Auto-refresh every 5 seconds
+
+### Frontend Tech Stack
+| Component | Technology |
+|-----------|------------|
+| Framework | Vanilla JS (no framework for simplicity) |
+| Styling | Tailwind CSS (CDN) |
+| Server | Nginx (static files) |
+| API Calls | Fetch API |
+
+### Dashboard Structure
+```
+src/frontend/
+├── index.html          # Main dashboard page
+├── css/
+│   └── styles.css      # Custom styles (minimal)
+├── js/
+│   └── app.js          # API calls + DOM updates
+├── Dockerfile          # Nginx multi-stage build
+└── nginx.conf          # Nginx configuration
+```
 
 ---
 
@@ -82,7 +122,8 @@ taskflow/
 ├── .github/workflows/     # CI/CD
 ├── src/
 │   ├── api/              # FastAPI application
-│   └── worker/           # Task worker
+│   ├── worker/           # Task worker
+│   └── frontend/         # Dashboard (Nginx + static)
 ├── kubernetes/           # K8s manifests
 ├── helm/taskflow/        # Helm chart
 ├── terraform/            # Azure IaC
@@ -95,8 +136,8 @@ taskflow/
 ## 7-Day Implementation Plan
 
 | Day | Focus | Objective |
-|-----|-------|-----------|
-| 1 | Docker | Complete app running in Docker Compose |
+|-----|-------|----------|
+| 1 | Docker | Complete app running in Docker Compose (API + Worker + Frontend) |
 | 2 | K8s Basics | Deployment with raw YAML manifests |
 | 3 | K8s Advanced | HPA, Probes, Init Containers |
 | 4 | Terraform | Provision Azure ACR + Storage |
@@ -116,7 +157,10 @@ cd taskflow
 # Start with Docker Compose (Day 1)
 docker-compose up -d
 
-# Submit a task
+# Access the dashboard
+open http://localhost:80
+
+# Or use the API directly
 curl -X POST http://localhost:8000/api/v1/tasks \
   -H "Content-Type: application/json" \
   -d '{"task_type": "test", "payload": {"message": "Hello"}}'
